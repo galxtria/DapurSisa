@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+:root { color-scheme: dark; }
+html, body, #root { height: 100%; }
+body {
+  background: #09090b;
+  color: #fafafa;
+  font-family: ui-sans-system, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, #22c55e var(--fill, 50%), #27272a var(--fill, 50%));
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 3px solid #22c55e;
+}
