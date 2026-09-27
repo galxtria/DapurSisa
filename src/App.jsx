@@ -10,10 +10,11 @@ import {
 import { MASTER_BAHAN, MASTER_ALAT, RECIPES } from './data/recipes.js'
 import { fotoResep } from './data/images.js'
 import { matchRecipes } from './lib/match.js'
-import { generateRecipesWithAI, getDefaultKey, hasBuiltInKey, resolveKey } from './lib/ai.js'
+import { generateRecipesWithAI, getDefaultKey, hasBuiltInKey } from './lib/ai.js'
 
 const FAV_KEY = 'dapursisa-fav-v1'
-const AI_KEY = 'dapursisa-gemini-key'
+// Key override lama (dapursisa-gemini-key) tidak dipakai lagi — bersihkan sekali.
+try { localStorage.removeItem('dapursisa-gemini-key') } catch {}
 const ONBOARD_KEY = 'dapursisa-onboard-v1'
 const PRIMARY = '#1d4a38'
 const BTN = '#1d4a38'
@@ -203,19 +204,15 @@ export default function App() {
     { dari: 'cs', teks: 'Halo, saya DapurSisa Care. Tulis sisa bahan yang kamu punya, saya bantu carikan resep yang cocok.' },
   ])
   const [pesan, setPesan] = useState('')
-  // Key user (opsional, override). Key utama dibake via VITE_GEMINI_API_KEY agar langsung pakai.
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem(AI_KEY) || '')
-  const [tampilKey, setTampilKey] = useState(false)
+  // AI langsung pakai: key dibake via VITE_GEMINI_API_KEY, tanpa input dari user.
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
   const [aiRecipes, setAiRecipes] = useState([])
   const [sumber, setSumber] = useState('lokal') // 'lokal' | 'ai'
 
   const builtInAda = hasBuiltInKey()
-  const kunciEfektif = resolveKey(apiKey)
+  const kunciEfektif = getDefaultKey()
   const aiSiap = !!kunciEfektif
-
-  const simpanKey = (v) => { setApiKey(v); try { v.trim() ? localStorage.setItem(AI_KEY, v.trim()) : localStorage.removeItem(AI_KEY) } catch {} }
 
   const mintaAI = async () => {
     if (aiLoading) return
@@ -581,17 +578,8 @@ export default function App() {
               </div>
             </div>
             <div className="rounded-[26px] p-4 text-white shadow-sm" style={{ background: '#10231b' }}>
-              <p className="text-[13px] font-extrabold flex items-center gap-1.5"><Bot size={16} className="text-amber-300" /> AI Gemini {aiSiap ? <span className="text-[10px] bg-green-500 px-2 py-0.5 rounded-full">AKTIF ✓</span> : <span className="text-[10px] bg-red-500 px-2 py-0.5 rounded-full">BELUM SET</span>}</p>
-              <p className="text-[11px] text-stone-300 mt-1 leading-relaxed">{builtInAda ? 'AI langsung bisa dipakai, tanpa isi key.' : 'Owner belum pasang key (VITE_GEMINI_API_KEY).'} Kolom di bawah hanya opsional untuk override.</p>
-              <div className="flex gap-2 mt-2.5">
-                <input value={apiKey} onChange={(e) => simpanKey(e.target.value)} type={tampilKey ? 'text' : 'password'}
-                  placeholder="Override key (opsional)…" className="flex-1 min-w-0 bg-white/10 border border-white/15 rounded-2xl px-3.5 py-2.5 text-[12px] outline-none placeholder:text-stone-400" />
-                <button onClick={() => setTampilKey(!tampilKey)} className="px-3.5 py-2.5 rounded-2xl bg-white/10 text-[12px] font-bold">{tampilKey ? 'Sembunyi' : 'Lihat'}</button>
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-[11px] text-stone-400">Status: {builtInAda ? 'key owner terpasang' : 'key owner kosong'}</span>
-                {apiKey.trim() && <button onClick={() => simpanKey('')} className="ml-auto text-[11px] font-semibold text-stone-300 flex items-center gap-1"><Trash2 size={11} /> Hapus override</button>}
-              </div>
+              <p className="text-[13px] font-extrabold flex items-center gap-1.5"><Bot size={16} className="text-amber-300" /> AI Gemini {aiSiap ? <span className="text-[10px] bg-green-500 px-2 py-0.5 rounded-full">AKTIF ✓</span> : <span className="text-[10px] bg-red-500 px-2 py-0.5 rounded-full">NONAKTIF</span>}</p>
+              <p className="text-[11px] text-stone-300 mt-1 leading-relaxed">{builtInAda ? 'AI langsung bisa dipakai dari tombol di Beranda.' : 'AI belum dikonfigurasi owner.'}</p>
             </div>
             <div className="bg-white rounded-[26px] border border-stone-100 shadow-sm divide-y divide-stone-100">
               <button onClick={() => { localStorage.removeItem(ONBOARD_KEY); setOnboard(false) }} className="w-full flex items-center gap-3 p-4 text-left">

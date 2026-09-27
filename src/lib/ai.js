@@ -162,8 +162,3 @@ export function getDefaultKey() {
 export function hasBuiltInKey() {
   return !!getDefaultKey()
 }
-
-// Key efektif: user override > built-in env. Frontend tidak pernah memaksa user isi.
-export function resolveKey(userKey) {
-  return ((userKey || '').trim() || getDefaultKey()).trim()
-}
