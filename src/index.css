@@ -1,26 +1,32 @@
 @import "tailwindcss";
 
-:root { color-scheme: dark; }
+:root { color-scheme: light; }
 html, body, #root { height: 100%; }
 body {
-  background: #09090b;
-  color: #fafafa;
+  background: #f7f4ee;
+  color: #1c1917;
   font-family: ui-sans-system, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
 }
-input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 6px;
-  border-radius: 9999px;
-  background: linear-gradient(to right, #22c55e var(--fill, 50%), #27272a var(--fill, 50%));
-  outline: none;
-  cursor: pointer;
+button { touch-action: manipulation; }
+
+/* Tipografi premium untuk judul hidangan */
+.font-display {
+  font-family: Georgia, 'Times New Roman', 'Noto Serif', serif;
+  letter-spacing: 0.01em;
 }
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px; height: 16px;
-  border-radius: 9999px;
-  background: #fff;
-  border: 3px solid #22c55e;
-}
+
+/* Hilangkan scrollbar pada deretan horizontal */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* iPhone notch / Dynamic Island / home indicator */
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.nav-bottom { margin-bottom: calc(0.9rem + env(safe-area-inset-bottom, 0px)); }
+.sheet-top { margin-top: max(1.5rem, calc(env(safe-area-inset-top, 0px) + 0.75rem)); }
+
+/* Cegah iOS auto-zoom saat input fokus (butuh >= 16px) */
+input, textarea, select { font-size: 16px !important; }
