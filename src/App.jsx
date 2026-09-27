@@ -10,8 +10,10 @@ import {
 import { MASTER_BAHAN, MASTER_ALAT, RECIPES } from './data/recipes.js'
 import { fotoResep } from './data/images.js'
 import { matchRecipes } from './lib/match.js'
+import { generateRecipesWithAI, getDefaultKey, hasBuiltInKey, resolveKey } from './lib/ai.js'
 
 const FAV_KEY = 'dapursisa-fav-v1'
+const AI_KEY = 'dapursisa-gemini-key'
 const ONBOARD_KEY = 'dapursisa-onboard-v1'
 const PRIMARY = '#1d4a38'
 const BTN = '#1d4a38'
@@ -201,9 +203,37 @@ export default function App() {
     { dari: 'cs', teks: 'Halo, saya DapurSisa Care. Tulis sisa bahan yang kamu punya, saya bantu carikan resep yang cocok.' },
   ])
   const [pesan, setPesan] = useState('')
+  // Key user (opsional, override). Key utama dibake via VITE_GEMINI_API_KEY agar langsung pakai.
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem(AI_KEY) || '')
+  const [tampilKey, setTampilKey] = useState(false)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiRecipes, setAiRecipes] = useState([])
+  const [sumber, setSumber] = useState('lokal') // 'lokal' | 'ai'
+
+  const builtInAda = hasBuiltInKey()
+  const kunciEfektif = resolveKey(apiKey)
+  const aiSiap = !!kunciEfektif
+
+  const simpanKey = (v) => { setApiKey(v); try { v.trim() ? localStorage.setItem(AI_KEY, v.trim()) : localStorage.removeItem(AI_KEY) } catch {} }
+
+  const mintaAI = async () => {
+    if (aiLoading) return
+    setAiLoading(true); setAiError('')
+    try {
+      const data = await generateRecipesWithAI({ bahan: punyaBahan, alat: punyaAlat, apiKey: kunciEfektif })
+      setAiRecipes(data); setSumber('ai'); setHeroIdx(0)
+    } catch (e) {
+      setAiError(e.message || 'Gagal meminta resep ke AI.')
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   const hasil = useMemo(() => {
-    let r = matchRecipes({ recipes: RECIPES, punyaBahan, punyaAlat })
+    let r = sumber === 'ai' && aiRecipes.length
+      ? [...aiRecipes]
+      : matchRecipes({ recipes: RECIPES, punyaBahan, punyaAlat })
     if (hanyaBisa) r = r.filter((x) => x.bisaDibuat)
     if (katAktif !== 'Semua') r = r.filter((x) => x.kategori === katAktif)
     if (cariMenu.trim()) {
@@ -211,7 +241,7 @@ export default function App() {
       r = r.filter((x) => x.nama.toLowerCase().includes(q) || x.bahan.some((b) => b.includes(q)))
     }
     return r
-  }, [punyaBahan, punyaAlat, hanyaBisa, katAktif, cariMenu])
+  }, [punyaBahan, punyaAlat, hanyaBisa, katAktif, cariMenu, sumber, aiRecipes])
 
   const heroList = useMemo(() => (hasil.length ? hasil.slice(0, 3) : matchRecipes({ recipes: RECIPES, punyaBahan, punyaAlat }).slice(0, 3)), [hasil, punyaBahan, punyaAlat])
   const hero = heroList[Math.min(heroIdx, heroList.length - 1)]
@@ -246,10 +276,12 @@ export default function App() {
   const kirimChat = () => {
     const t = pesan.trim()
     if (!t) return
-    const top = matchRecipes({ recipes: RECIPES, punyaBahan, punyaAlat })[0]
+    const top = hasil[0] || matchRecipes({ recipes: RECIPES, punyaBahan, punyaAlat })[0]
+    if (!top) return
+    const labelSumber = sumber === 'ai' ? ' (dibuat AI ✨)' : ''
     setChat((c) => [...c,
       { dari: 'user', teks: t },
-      { dari: 'cs', teks: `Dari bahan kamu, resep paling cocok adalah ${top.nama} (${top.persen}% cocok, ${top.waktu} menit). Tap tombol di bawah untuk melihat cara buatnya.`, resepId: top.id },
+      { dari: 'cs', teks: `Dari bahan kamu${labelSumber}, resep paling cocok adalah ${top.nama} (${top.persen}% cocok, ${top.waktu} menit). Tap tombol di bawah untuk melihat cara buatnya.`, resepId: top.id },
     ])
     setPesan('')
   }
@@ -398,6 +430,31 @@ export default function App() {
               )}
             </section>
 
+            {/* Asisten AI */}
+            <section className="rounded-[26px] p-4 text-white shadow-[0_8px_24px_rgba(29,74,56,.25)]" style={{ background: '#10231b' }}>
+              <div className="flex items-center gap-2.5">
+                <span className="w-9 h-9 rounded-2xl bg-white/10 flex items-center justify-center text-amber-300"><Sparkles size={17} /></span>
+                <div className="flex-1">
+                  <p className="text-[14px] font-extrabold leading-tight">Asisten AI {sumber === 'ai' && <span className="text-[10px] font-bold bg-green-500 px-2 py-0.5 rounded-full ml-1">AKTIF ✨</span>}</p>
+                  <p className="text-[11px] text-stone-300">Bahan + alat dibaca AI, resep dibuat khusus.</p>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button onClick={mintaAI} disabled={aiLoading}
+                  className="flex-1 py-3 rounded-2xl bg-amber-300 text-stone-900 text-[13px] font-extrabold active:scale-[.99] disabled:opacity-60 flex items-center justify-center gap-1.5">
+                  {aiLoading ? 'AI sedang memasak…' : sumber === 'ai' ? 'Buatkan lagi ✨' : 'Buatkan resep dengan AI ✨'}
+                </button>
+                {sumber === 'ai' && (
+                  <button onClick={() => { setSumber('lokal'); setAiRecipes([]) }}
+                    className="px-4 py-3 rounded-2xl bg-white/10 text-[12px] font-bold">Lokal</button>
+                )}
+              </div>
+              {aiError && <p className="mt-2 text-[11px] font-semibold text-red-300 bg-red-500/10 border border-red-400/20 rounded-xl px-3 py-2">{aiError}</p>}
+              {!aiSiap && !aiError && (
+                <p className="mt-2 text-[11px] font-semibold text-amber-200">AI belum dikonfigurasi owner. Sementara pakai resep lokal di bawah.</p>
+              )}
+            </section>
+
             {/* Kategori */}
             <section>
               <div className="flex items-center justify-between mb-2.5">
@@ -423,7 +480,7 @@ export default function App() {
             {/* Rekomendasi */}
             <section>
               <div className="flex items-center justify-between mb-2.5">
-                <h2 className="text-[15px] font-extrabold text-stone-900 tracking-tight flex items-center"><span className="inline-block w-1 h-4 rounded-full mr-2" style={{ background: GOLD }} />Rekomendasi buat kamu <span className="text-stone-400 font-bold ml-1">({hasil.length})</span></h2>
+                <h2 className="text-[15px] font-extrabold text-stone-900 tracking-tight flex items-center"><span className="inline-block w-1 h-4 rounded-full mr-2" style={{ background: GOLD }} />{sumber === 'ai' ? 'Resep dari AI ✨' : 'Rekomendasi buat kamu'} <span className="text-stone-400 font-bold ml-1">({hasil.length})</span></h2>
                 <button onClick={() => setHanyaBisa(!hanyaBisa)}
                   className={`flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-1.5 rounded-full border ${hanyaBisa ? 'text-white border-transparent' : 'bg-white text-stone-500 border-stone-200'}`}
                   style={hanyaBisa ? { background: '#15803d' } : {}}>
@@ -450,8 +507,8 @@ export default function App() {
         {tab === 'favorit' && (
           <main className="px-5 pt-2 space-y-2.5 relative">
             <h2 className="text-[17px] font-extrabold text-stone-900 tracking-tight">Favorit <span className="text-stone-400">({fav.length})</span></h2>
-            {RECIPES.filter((r) => fav.includes(r.id)).map((base) => {
-              const full = matchRecipes({ recipes: [base], punyaBahan, punyaAlat })[0]
+            {[...RECIPES.filter((r) => fav.includes(r.id)), ...aiRecipes.filter((r) => fav.includes(r.id))].map((base) => {
+              const full = matchRecipes({ recipes: [base], punyaBahan, punyaAlat })[0] || base
               return <RecipeCard key={base.id} r={full} isFav onFav={toggleFav} onDetail={setDetail} />
             })}
             {fav.length === 0 && (
@@ -472,7 +529,7 @@ export default function App() {
               <span className="w-11 h-11 rounded-2xl bg-orange-50 flex items-center justify-center text-orange-800"><Bot size={20} /></span>
               <div className="flex-1">
                 <p className="text-[13px] font-extrabold text-stone-900 flex items-center gap-1.5">DapurSisa Care <BadgeCheck size={14} className="text-orange-700" /></p>
-                <p className="text-[11px] text-green-600 font-semibold flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Aktif — offline</p>
+                <p className="text-[11px] text-green-600 font-semibold flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500" /> {aiSiap ? `AI aktif ✨ • ${sumber === 'ai' ? 'pakai resep AI' : 'siap dipakai'}` : 'Aktif — mode lokal'}</p>
               </div>
             </div>
             <p className="text-center text-[10px] font-semibold text-stone-400 bg-stone-100 w-fit mx-auto px-3 py-1 rounded-full">Hari ini</p>
@@ -483,7 +540,7 @@ export default function App() {
                     style={m.dari === 'user' ? { background: BTN } : {}}>
                     {m.teks}
                     {m.resepId && (
-                      <button onClick={() => { const r = matchRecipes({ recipes: RECIPES, punyaBahan, punyaAlat }).find((x) => x.id === m.resepId); if (r) setDetail(r) }}
+                      <button onClick={() => { const semua = [...hasil, ...aiRecipes, ...matchRecipes({ recipes: RECIPES, punyaBahan, punyaAlat })]; const r = semua.find((x) => x.id === m.resepId); if (r) setDetail(r) }}
                         className="mt-2 block text-[11px] font-extrabold bg-orange-100 text-orange-900 px-3 py-1.5 rounded-full">Lihat resep</button>
                     )}
                   </div>
@@ -513,7 +570,7 @@ export default function App() {
                 <ChefHat size={34} />
               </div>
               <p className="font-extrabold mt-3 text-stone-900">Sobat Dapur</p>
-              <p className="text-[11px] text-stone-400">100% offline • data tersimpan di HP</p>
+              <p className="text-[11px] text-stone-400">Hybrid • lokal offline + AI Gemini</p>
               <div className="grid grid-cols-3 gap-2 mt-5">
                 {[{ v: RECIPES.length, l: 'Resep' }, { v: fav.length, l: 'Favorit' }, { v: punyaBahan.length, l: 'Bahan' }].map((s) => (
                   <div key={s.l} className="bg-stone-50 border border-stone-100 rounded-2xl p-3">
@@ -521,6 +578,19 @@ export default function App() {
                     <p className="text-[10px] font-semibold text-stone-400">{s.l}</p>
                   </div>
                 ))}
+              </div>
+            </div>
+            <div className="rounded-[26px] p-4 text-white shadow-sm" style={{ background: '#10231b' }}>
+              <p className="text-[13px] font-extrabold flex items-center gap-1.5"><Bot size={16} className="text-amber-300" /> AI Gemini {aiSiap ? <span className="text-[10px] bg-green-500 px-2 py-0.5 rounded-full">AKTIF ✓</span> : <span className="text-[10px] bg-red-500 px-2 py-0.5 rounded-full">BELUM SET</span>}</p>
+              <p className="text-[11px] text-stone-300 mt-1 leading-relaxed">{builtInAda ? 'AI langsung bisa dipakai, tanpa isi key.' : 'Owner belum pasang key (VITE_GEMINI_API_KEY).'} Kolom di bawah hanya opsional untuk override.</p>
+              <div className="flex gap-2 mt-2.5">
+                <input value={apiKey} onChange={(e) => simpanKey(e.target.value)} type={tampilKey ? 'text' : 'password'}
+                  placeholder="Override key (opsional)…" className="flex-1 min-w-0 bg-white/10 border border-white/15 rounded-2xl px-3.5 py-2.5 text-[12px] outline-none placeholder:text-stone-400" />
+                <button onClick={() => setTampilKey(!tampilKey)} className="px-3.5 py-2.5 rounded-2xl bg-white/10 text-[12px] font-bold">{tampilKey ? 'Sembunyi' : 'Lihat'}</button>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-[11px] text-stone-400">Status: {builtInAda ? 'key owner terpasang' : 'key owner kosong'}</span>
+                {apiKey.trim() && <button onClick={() => simpanKey('')} className="ml-auto text-[11px] font-semibold text-stone-300 flex items-center gap-1"><Trash2 size={11} /> Hapus override</button>}
               </div>
             </div>
             <div className="bg-white rounded-[26px] border border-stone-100 shadow-sm divide-y divide-stone-100">
@@ -535,7 +605,7 @@ export default function App() {
                 <ChevronRight size={15} className="text-stone-300" />
               </button>
             </div>
-            <p className="text-center text-[10px] text-stone-400">DapurSisa v1.0 • React + PWA</p>
+            <p className="text-center text-[10px] text-stone-400">DapurSisa v1.1 • React + PWA + AI Gemini</p>
           </main>
         )}
 
@@ -594,11 +664,13 @@ export default function App() {
                       : <><Lightbulb size={15} /> Kurang {detail.kurang.length} bahan{detail.alatKurang.length ? ` dan ${detail.alatKurang.length} alat` : ''}</>}
                   </div>
                 </div>
+                {detail.video?.id && (
                 <div>
                   <h3 className="text-[14px] font-extrabold flex items-center gap-1.5 text-stone-900"><Youtube size={16} className="text-red-600" /> Video tutorial</h3>
                   <p className="text-[11px] text-stone-400 mb-2">Tonton cara membuatnya langsung dari kreator masak.</p>
                   <VideoCard video={detail.video} />
                 </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl bg-white border border-stone-100 p-3.5 space-y-1.5 shadow-sm">
                     <h3 className="text-[10px] font-extrabold tracking-wider text-stone-400">BAHAN WAJIB</h3>

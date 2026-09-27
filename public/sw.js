@@ -1,5 +1,5 @@
 /* DapurSisa offline SW — runtime cache, tanpa daftar hash manual */
-const CACHE = 'dapursisa-v2'
+const CACHE = 'dapursisa-v3'
 const IMG_CACHE = 'dapursisa-img-v1'
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png']
 
